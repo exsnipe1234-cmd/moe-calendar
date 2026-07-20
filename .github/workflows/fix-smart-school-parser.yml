@@ -1,0 +1,36 @@
+name: Fix smart school parser
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-smart-school-parser.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Make school parsing more flexible
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text()
+          old = "function schoolFromText(text){const m=text.match(/\\bat\\s+(.+?)(?=\\s+(?:on|today|tomorrow|this|next|from|at\\s+\\d|every|until)\\b|,|$)/i);return m?m[1].replace(/'s\\s+.*lesson$/i,'').trim():null}"
+          new = "function schoolFromText(text){const known=[...new Set(lessons.map(x=>x.school).filter(Boolean))].sort((a,b)=>b.length-a.length),hit=known.find(s=>text.toLowerCase().includes(s.toLowerCase()));if(hit)return hit;let m=text.match(/\\b(?:at|in)\\s+(.+?)(?=\\s+(?:on|today|tomorrow|this|next|from|at\\s+\\d|every|until)\\b|,|$)/i);if(m)return m[1].replace(/'s\\s+.*lesson$/i,'').trim();const teacher=findTeacher(text);if(teacher){const after=text.slice(text.toLowerCase().indexOf(teacher.display_name.toLowerCase())+teacher.display_name.length);m=after.match(/^\\s+(?:at\\s+|in\\s+)?(.+?)(?=\\s+(?:on|today|tomorrow|this|next|from|at\\s+\\d|every|until)\\b|,|$)/i);if(m)return m[1].replace(/^(?:at|in)\\s+/i,'').replace(/'s\\s+.*lesson$/i,'').trim()}return null}"
+          if old not in s:
+              raise SystemExit('Target parser was not found; no changes made.')
+          p.write_text(s.replace(old, new))
+          PY
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Make smart school parsing more flexible"
+          git push
