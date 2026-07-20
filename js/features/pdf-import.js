@@ -72,138 +72,34 @@
     await loadLessons();
   };
 
-  // Today remains the default view. On phones, the month calendar is also kept
-  // directly below it and internally positioned at today's date.
-  let activeCalendarView = 'today';
-  const mobileQuery = window.matchMedia('(max-width: 640px)');
+  // Mobile month view: for the current month, show today and upcoming dates only.
+  // Desktop and other months remain unchanged.
+  const mobileStyle = document.createElement('style');
+  mobileStyle.textContent = '@media(max-width:640px){.day.mobile-past-date{display:none!important}.day.today{outline:2px solid var(--accent);box-shadow:0 0 0 3px rgba(137,166,255,.12)}}';
+  document.head.appendChild(mobileStyle);
 
-  const style = document.createElement('style');
-  style.textContent = `
-    .today-schedule{display:grid;gap:12px;margin-bottom:18px}
-    .today-heading{padding:18px;border-radius:15px}
-    .today-heading h2{margin:0 0 5px;font-size:24px}
-    .today-heading p{margin:0;color:var(--muted)}
-    .today-lesson{display:grid;grid-template-columns:125px 1fr auto;gap:16px;align-items:center;padding:16px;border-radius:14px;cursor:pointer}
-    .today-lesson:hover{filter:brightness(1.08)}
-    .today-time{font-size:18px;font-weight:800}
-    .today-school{font-size:17px;font-weight:750}
-    .today-meta{margin-top:5px;color:var(--muted);font-size:13px}
-    .today-teacher{padding:6px 10px;border-radius:999px;background:#233858;font-size:12px;white-space:nowrap}
-    .mobile-month-title{display:none;margin:20px 0 10px;font-size:18px}
-    @media(max-width:640px){
-      .today-lesson{grid-template-columns:1fr}
-      .today-teacher{justify-self:start}
-      .mobile-month-title{display:block}
-      #monthWrap.mobile-current-month{max-height:68vh;overflow-y:auto;overscroll-behavior:contain;padding-right:3px;scroll-behavior:smooth}
-    }
-  `;
-  document.head.appendChild(style);
-
-  const monthWrap = $('monthWrap');
-  const listWrap = $('listWrap');
-  const todayWrap = document.createElement('div');
-  todayWrap.id = 'todayWrap';
-  todayWrap.className = 'today-schedule';
-  monthWrap.parentNode.insertBefore(todayWrap, monthWrap);
-
-  const mobileMonthTitle = document.createElement('h2');
-  mobileMonthTitle.className = 'mobile-month-title';
-  mobileMonthTitle.textContent = 'Month calendar';
-  monthWrap.parentNode.insertBefore(mobileMonthTitle, monthWrap);
-
-  const monthButton = $('monthViewBtn');
-  const listButton = $('listViewBtn');
-  const todayButton = document.createElement('button');
-  todayButton.id = 'todayViewBtn';
-  todayButton.className = 'btn primary';
-  todayButton.textContent = 'Today';
-  monthButton.parentNode.insertBefore(todayButton, monthButton);
-
-  function localTodayIso() {
+  function applyMobileCurrentDayView() {
+    const calendar = $('calendar');
+    if (!calendar) return;
     const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  }
+    const isMobile = window.matchMedia('(max-width:640px)').matches;
+    const isCurrentMonth = cursor.getFullYear() === now.getFullYear() && cursor.getMonth() === now.getMonth();
 
-  function setActiveButton(button) {
-    [todayButton, monthButton, listButton].forEach(item => item.classList.remove('primary'));
-    button.classList.add('primary');
-  }
+    calendar.querySelectorAll('.day').forEach(day => day.classList.remove('mobile-past-date'));
+    if (!isMobile || !isCurrentMonth) return;
 
-  function positionMonthAtToday() {
-    if (!mobileQuery.matches) return;
-    monthWrap.classList.add('mobile-current-month');
-    requestAnimationFrame(() => {
-      const todayCell = monthWrap.querySelector('.day.today');
-      if (todayCell) monthWrap.scrollTop = Math.max(0, todayCell.offsetTop - 14);
+    calendar.querySelectorAll('.day:not(.other)').forEach(day => {
+      const dayNumber = Number(day.querySelector('.date-number')?.textContent || 0);
+      if (dayNumber < now.getDate()) day.classList.add('mobile-past-date');
     });
-  }
-
-  function renderTodayView() {
-    const date = localTodayIso();
-    const dayLabel = new Date(date + 'T00:00:00').toLocaleDateString('en-SG', {
-      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-    });
-    const items = filtered()
-      .filter(item => item.lesson_date === date)
-      .sort((a, b) => a.start_time.localeCompare(b.start_time));
-
-    todayWrap.innerHTML = `<section class="today-heading glass"><h2>${esc(dayLabel)}</h2><p>${items.length} lesson${items.length === 1 ? '' : 's'} scheduled today</p></section>` +
-      (items.length
-        ? items.map(item => {
-            const person = profileById(item.teacher_id);
-            return `<article class="today-lesson glass" data-id="${item.id}" style="border-left:4px solid ${esc(person.colour || person.color || '#89a6ff')}">
-              <div class="today-time">${esc(item.start_time.slice(0, 5))}–${esc(item.end_time.slice(0, 5))}</div>
-              <div><div class="today-school">${esc(item.school)}</div><div class="today-meta">${item.class_name ? esc(item.class_name) + ' · ' : ''}${esc(item.activity)} · ${esc(item.status)}</div></div>
-              <div class="today-teacher">${esc(person.display_name)}</div>
-            </article>`;
-          }).join('')
-        : '<div class="empty glass">No lessons scheduled for today.</div>');
-    bindEvents();
-  }
-
-  function showToday() {
-    activeCalendarView = 'today';
-    renderTodayView();
-    todayWrap.classList.remove('hidden');
-    listWrap.classList.add('hidden');
-    setActiveButton(todayButton);
-
-    if (mobileQuery.matches) {
-      mobileMonthTitle.classList.remove('hidden');
-      monthWrap.classList.remove('hidden');
-      positionMonthAtToday();
-    } else {
-      mobileMonthTitle.classList.add('hidden');
-      monthWrap.classList.add('hidden');
-    }
   }
 
   const originalRender = render;
   render = function () {
     originalRender();
-    renderTodayView();
-    if (activeCalendarView === 'today' && mobileQuery.matches) positionMonthAtToday();
+    applyMobileCurrentDayView();
   };
 
-  todayButton.onclick = showToday;
-  monthButton.onclick = () => {
-    activeCalendarView = 'month';
-    todayWrap.classList.add('hidden');
-    mobileMonthTitle.classList.add('hidden');
-    monthWrap.classList.remove('hidden');
-    listWrap.classList.add('hidden');
-    setActiveButton(monthButton);
-    positionMonthAtToday();
-  };
-  listButton.onclick = () => {
-    activeCalendarView = 'list';
-    todayWrap.classList.add('hidden');
-    mobileMonthTitle.classList.add('hidden');
-    monthWrap.classList.add('hidden');
-    listWrap.classList.remove('hidden');
-    setActiveButton(listButton);
-  };
-
-  if (mobileQuery.addEventListener) mobileQuery.addEventListener('change', showToday);
-  showToday();
+  window.addEventListener('resize', applyMobileCurrentDayView);
+  applyMobileCurrentDayView();
 })();
