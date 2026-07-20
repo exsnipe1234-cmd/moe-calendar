@@ -33,11 +33,13 @@
     return `<article class="ai-change-card">${heading ? `<div class="ai-change-title">${escHtml(heading)}</div>` : ''}<div>${escHtml(teacherName(lesson.teacher_id))}</div><div class="ai-change-meta">${escHtml(lesson.lesson_date)} · ${escHtml(timeShort(lesson.start_time))}–${escHtml(timeShort(lesson.end_time))}</div><div class="ai-change-meta">${escHtml(lesson.school || '')}${lesson.class_name ? ' · ' + escHtml(lesson.class_name) : ''}${lesson.activity ? ' · ' + escHtml(lesson.activity) : ''}</div></article>`;
   }
 
-  function addMessage(role, html) {
+  function addMessage(role, html, label = '') {
     const chat = $id('aiChat');
     const item = document.createElement('div');
     item.className = `ai-message ${role}`;
-    item.innerHTML = `<div class="ai-avatar">${role === 'user' ? 'You' : 'AI'}</div><div class="ai-bubble">${html}</div>`;
+    const avatar = role === 'user' ? 'G' : '✦';
+    const name = label || (role === 'user' ? 'You' : 'Music Delight AI');
+    item.innerHTML = `<div class="ai-avatar" aria-hidden="true">${avatar}</div><div class="ai-message-body"><div class="ai-message-meta"><span>${escHtml(name)}</span><time>${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time></div><div class="ai-bubble">${html}</div></div>`;
     chat.appendChild(item);
     chat.scrollTop = chat.scrollHeight;
   }
@@ -168,9 +170,10 @@
     }
 
     const total = durationMinutes(found);
-    return found.length
-      ? `<b>Found ${found.length} lesson${found.length === 1 ? '' : 's'}.</b> Total duration: ${(total / 60).toFixed(total % 60 ? 1 : 0)} hours.<div class="ai-results">${found.slice(0, 50).map(item => renderLessonCard(item)).join('')}${found.length > 50 ? '<div>Only the first 50 are shown.</div>' : ''}</div>`
-      : 'No matching lessons were found.';
+    if (!found.length) return '<div class="ai-empty-state"><div class="ai-empty-icon">⌕</div><b>No matching lessons</b><span>Try including a teacher, date, school, class or activity.</span></div>';
+    const schools = new Set(found.map(item => item.school).filter(Boolean)).size;
+    const rows = found.slice(0, 50).map(item => `<tr><td>${escHtml(item.lesson_date)}</td><td>${escHtml(timeShort(item.start_time))}–${escHtml(timeShort(item.end_time))}</td><td>${escHtml(teacherName(item.teacher_id))}</td><td>${escHtml(item.school || '—')}</td><td>${escHtml(item.class_name || item.activity || '—')}</td></tr>`).join('');
+    return `<div class="ai-result-summary"><div><span>Lessons</span><b>${found.length}</b></div><div><span>Total hours</span><b>${(total / 60).toFixed(total % 60 ? 1 : 0)}</b></div><div><span>Schools</span><b>${schools}</b></div></div><div class="ai-table-wrap"><table class="ai-result-table"><thead><tr><th>Date</th><th>Time</th><th>Teacher</th><th>School</th><th>Class / Activity</th></tr></thead><tbody>${rows}</tbody></table></div>${found.length > 50 ? '<div class="ai-result-note">Showing the first 50 lessons.</div>' : ''}`;
   }
 
   function renderPending(title, body, confirmLabel) {
@@ -313,22 +316,52 @@
     dialog.innerHTML = `
       <div class="ai-panel">
         <header class="ai-header">
-          <div><h2>Music Delight AI</h2><p>Ask about the calendar or prepare changes. Nothing is changed without confirmation.</p></div>
-          <button type="button" id="aiClose" class="btn" aria-label="Close">✕</button>
+          <div class="ai-brand-block">
+            <div class="ai-logo" aria-hidden="true">✦</div>
+            <div><div class="ai-title-row"><h2>Music Delight AI</h2><span class="ai-beta">BETA</span></div><p>Your assistant for the Music Delight Calendar</p></div>
+          </div>
+          <div class="ai-header-actions">
+            <button type="button" id="aiClear" class="ai-icon-btn" aria-label="Clear conversation" title="Clear conversation">↻</button>
+            <button type="button" id="aiClose" class="ai-icon-btn" aria-label="Close">✕</button>
+          </div>
         </header>
-        <div id="aiChat" class="ai-chat" aria-live="polite"></div>
-        <div class="ai-quick-actions">
-          <button type="button" data-prompt="Show all lessons tomorrow">Tomorrow's lessons</button>
-          <button type="button" data-prompt="Find teacher conflicts this month">Find conflicts</button>
-          <button type="button" data-prompt="Who is free tomorrow?">Who is free?</button>
-        </div>
-        <div class="ai-composer">
-          <textarea id="aiInput" rows="2" placeholder="Example: Move Gerald's Compassvale lesson tomorrow to 3pm"></textarea>
-          <button type="button" id="aiSend" class="btn primary">Send</button>
+        <div class="ai-workspace">
+          <main class="ai-main-column">
+            <div id="aiChat" class="ai-chat" aria-live="polite"></div>
+            <div class="ai-prompt-chips" aria-label="Suggested prompts">
+              <button type="button" data-prompt="Show all lessons tomorrow">Tomorrow's lessons</button>
+              <button type="button" data-prompt="Find teacher conflicts this month">Find conflicts</button>
+              <button type="button" data-prompt="Who is free tomorrow?">Who is free?</button>
+              <button type="button" data-prompt="Show total teaching hours this month">Teaching hours</button>
+            </div>
+            <div class="ai-composer-wrap">
+              <div class="ai-composer">
+                <textarea id="aiInput" rows="2" placeholder="Ask anything about your calendar…"></textarea>
+                <button type="button" id="aiSend" class="ai-send-btn" aria-label="Send message">➤</button>
+              </div>
+              <div class="ai-composer-actions">
+                <button type="button" data-prompt="Add a lesson">＋ Add lesson</button>
+                <button type="button" data-prompt="Move a lesson">⇄ Move lesson</button>
+                <button type="button" data-prompt="Edit a lesson">✎ Edit lesson</button>
+                <button type="button" data-prompt="Delete a lesson">⌫ Delete lesson</button>
+              </div>
+              <p class="ai-disclaimer">AI can make mistakes. Review every proposed change before confirming.</p>
+            </div>
+          </main>
+          <aside class="ai-side-column">
+            <section class="ai-side-card"><h3>Quick actions</h3><button data-prompt="Add a lesson"><span>＋</span><div><b>Add lesson</b><small>Create a new lesson</small></div><i>›</i></button><button data-prompt="Move a lesson"><span>⇄</span><div><b>Move lesson</b><small>Change date or time</small></div><i>›</i></button><button data-prompt="Replace a teacher"><span>♙</span><div><b>Replace teacher</b><small>Assign another teacher</small></div><i>›</i></button><button data-prompt="Delete a lesson"><span>⌫</span><div><b>Delete lesson</b><small>Remove lesson(s)</small></div><i>›</i></button></section>
+            <section class="ai-side-card"><h3>Search & explore</h3><button data-prompt="Search lessons"><span>⌕</span><div><b>Search lessons</b><small>Find by teacher or school</small></div><i>›</i></button><button data-prompt="Who is free tomorrow?"><span>◷</span><div><b>Who is free?</b><small>Check availability</small></div><i>›</i></button><button data-prompt="Show total teaching hours this month"><span>◴</span><div><b>Teaching hours</b><small>Summarise teacher load</small></div><i>›</i></button></section>
+          </aside>
         </div>
       </div>`;
 
     $id('aiClose').onclick = () => dialog.close();
+    $id('aiClear').onclick = () => {
+      pendingActions = [];
+      conversation = [];
+      $id('aiChat').innerHTML = '';
+      addMessage('assistant', '<div class="ai-welcome"><b>How can I help?</b><span>I can search the calendar, calculate teaching hours, find clashes, or prepare lesson changes for confirmation.</span></div>');
+    };
     $id('aiSend').onclick = sendMessage;
     $id('aiInput').addEventListener('keydown', event => {
       if (event.key === 'Enter' && !event.shiftKey) {
@@ -348,7 +381,7 @@
       pendingActions = [];
       conversation = [];
       $id('aiChat').innerHTML = '';
-      addMessage('assistant', 'Hi Gerald. I can add, move, edit, replace, delete, search, total teaching hours, check free teachers and find clashes. What should I do?');
+      addMessage('assistant', '<div class="ai-welcome"><b>Hi Gerald, how can I help?</b><span>I can search lessons, calculate teaching hours, check availability and prepare calendar changes. Nothing is saved until you confirm.</span></div>');
       dialog.showModal();
       setTimeout(() => $id('aiInput').focus(), 50);
     };
