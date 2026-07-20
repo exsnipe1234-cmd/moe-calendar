@@ -12,7 +12,8 @@
     const response = await fetch('https://raw.githubusercontent.com/exsnipe1234-cmd/moe-calendar/5c3ca77a79d79454f7c8ab58f5ebcef99cc567a5/index.html', { cache: 'no-store' });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     let html = await response.text();
-    html = html.replace('</body>', '<script src="duplicate-check.js?v=2"><\\/script></body>');
+    html = html.replaceAll('@mds.local', '@mdscal.com');
+    html = html.replace('</body>', '<script src="duplicate-check.js?v=3"><\/script></body>');
     document.open();
     document.write(html);
     document.close();
