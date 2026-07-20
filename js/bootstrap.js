@@ -9,9 +9,14 @@
       let html = await response.text();
       html = html.replaceAll('@mds.local', '@mdscal.com');
       html = html.replace(
+        '</head>',
+        '<link rel="stylesheet" href="css/styles.css?v=4">' +
+        '</head>'
+      );
+      html = html.replace(
         '</body>',
         '<script src="js/features/pdf-import.js?v=1"><\/script>' +
-        '<script src="js/features/ai-smart-update.js?v=3"><\/script>' +
+        '<script src="js/features/ai-smart-update.js?v=4"><\/script>' +
         '</body>'
       );
 
