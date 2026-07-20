@@ -43,8 +43,29 @@ function candidateMatch(text,names,aliasMap={}){const words=normaliseText(text).
 function findTeacherSmart(t){const matches=candidateMatch(t,profiles.map(p=>p.display_name),teacherAliases);if(!matches.length)return{value:null,confidence:0,ambiguous:[]};if(matches[1]&&matches[0].score-matches[1].score<.08)return{value:null,confidence:matches[0].score,ambiguous:matches.slice(0,3)};return{value:profiles.find(p=>p.display_name===matches[0].value),confidence:matches[0].score,ambiguous:[]}}
 function extractTimes(t){const out=[];const rx=/\b\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b/ig;for(const m of t.matchAll(rx)){const raw=m[0];if(/^\d{4}$/.test(raw.trim()))continue;const v=parseTime(raw);if(v&&!out.includes(v))out.push(v)}return out.slice(0,2)}
 function knownSchoolNames(){return [...new Set(lessons.map(x=>x.school).filter(Boolean))]}
-function findSchoolSmart(t){const names=knownSchoolNames();const expanded={...schoolAliases};for(const n of names){const k=normaliseText(n);expanded[k]=[...(expanded[k]||[]),k.replace(/ primary school$/,''),k.replace(/ school$/,'')]}
-const matches=candidateMatch(t,names,expanded);if(!matches.length)return{value:null,confidence:0,ambiguous:[]};if(matches[1]&&matches[0].score-matches[1].score<.08)return{value:null,confidence:matches[0].score,ambiguous:matches.slice(0,3)};return{value:matches[0].value,confidence:matches[0].score,ambiguous:[]}}
+function titleCaseSchool(s){return String(s||'').trim().replace(/\s+/g,' ').replace(/\b\w/g,c=>c.toUpperCase()).replace(/\bAnd\b/g,'and').replace(/\bOf\b/g,'of')}
+function explicitSchoolPhrase(t){
+ const endings='Primary School|Secondary School|High School|Junior College|Polytechnic|University|Academy|Institute|College|School';
+ const rx=new RegExp(`([A-Za-z][A-Za-z0-9&'().-]*(?:\\s+[A-Za-z0-9&'().-]+){0,12}\\s+(?:${endings}))\\b`,'i');
+ const m=String(t).match(rx);if(!m)return null;
+ const teacher=findTeacherSmart(t).value,activity=activityFromTextSmart(t).value;
+ return residualSchoolPhrase(m[1],teacher,activity)
+}
+function residualSchoolPhrase(t,teacher,activity){
+ let s=String(t);
+ const remove=[teacher?.display_name,activity,'add','create','put','schedule','book','lesson','class','today','tomorrow','this','next','on','at','in','from','to','until','every','confirmed','tbc','public','holiday',...weekdays,...months];
+ for(const r of remove.filter(Boolean))s=s.replace(new RegExp(`\\b${String(r).replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`,'ig'),' ');
+ s=s.replace(/\b\d{4}-\d{1,2}-\d{1,2}\b|\b\d{1,2}[\/-]\d{1,2}(?:[\/-]\d{2,4})?\b|\b\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b/ig,' ').replace(/\b(?:P|K|SEC)\s*\d+[A-Z0-9-]*\b/ig,' ').replace(/[^A-Za-z0-9&'(). -]/g,' ').replace(/\s+/g,' ').trim();
+ if(!s)return null;
+ const words=s.split(' ').filter(Boolean);if(words.length>8)return null;
+ return titleCaseSchool(s)
+}
+function findSchoolSmart(t){
+ const explicit=explicitSchoolPhrase(t);if(explicit)return{value:explicit,confidence:1,ambiguous:[]};
+ const names=knownSchoolNames(),expanded={...schoolAliases};for(const n of names){const k=normaliseText(n);expanded[k]=[...(expanded[k]||[]),k.replace(/ primary school$/,''),k.replace(/ secondary school$/,''),k.replace(/ school$/,'')]}
+ const matches=candidateMatch(t,names,expanded);if(matches.length){if(matches[1]&&matches[0].score-matches[1].score<.08)return{value:null,confidence:matches[0].score,ambiguous:matches.slice(0,3)};return{value:matches[0].value,confidence:matches[0].score,ambiguous:[]}}
+ const teacher=findTeacherSmart(t).value,activity=activityFromTextSmart(t).value,residual=residualSchoolPhrase(t,teacher,activity);return residual?{value:residual,confidence:.72,ambiguous:[]}:{value:null,confidence:0,ambiguous:[]}
+}
 function activityFromTextSmart(t){const known=[...new Set(lessons.map(x=>x.activity).filter(Boolean)),'Keyboard','Ukulele','Kalimba','Angklung','CCA','Piano','Violin','Guitar','Drums'];const aliases={keyboard:['keyboard','keybord','keys'],ukulele:['ukulele','uke'],kalimba:['kalimba'],angklung:['angklung'],cca:['cca'],piano:['piano'],violin:['violin'],guitar:['guitar'],drums:['drum','drums']};const m=candidateMatch(t,known,aliases);return m.length?{value:m[0].value,confidence:m[0].score}:{value:null,confidence:0}}
 function findLessonSmart(teacher,date,school,time){const a=lessons.filter(x=>(!teacher||x.teacher_id===teacher.id)&&(!date||x.lesson_date===date)&&(!school||normaliseText(x.school).includes(normaliseText(school)))&&(!time||x.start_time.slice(0,5)===time));if(a.length===1)return a[0];if(!a.length)throw Error('No matching lesson found.');throw Error('More than one lesson matches. Add more details.')}
 function duplicateFor(p){return lessons.find(x=>x.teacher_id===p.teacher_id&&x.lesson_date===p.lesson_date&&x.start_time.slice(0,5)===p.start_time&&x.end_time.slice(0,5)===p.end_time&&normaliseText(x.school)===normaliseText(p.school)&&normaliseText(x.activity)===normaliseText(p.activity))||null}
