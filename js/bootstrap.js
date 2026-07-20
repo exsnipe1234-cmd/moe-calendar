@@ -7,7 +7,6 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       let html = await response.text();
-      html = html.replaceAll('@mds.local', '@mdscal.com');
       html = html.replace(
         '</head>',
         '<link rel="stylesheet" href="css/styles.css?v=4">' +
