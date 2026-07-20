@@ -11,7 +11,7 @@
       html = html.replace(
         '</body>',
         '<script src="js/features/pdf-import.js?v=1"><\/script>' +
-        '<script src="js/features/ai-smart-update.js?v=2"><\/script>' +
+        '<script src="js/features/ai-smart-update.js?v=3"><\/script>' +
         '</body>'
       );
 
