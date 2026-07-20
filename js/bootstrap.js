@@ -7,6 +7,14 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       let html = await response.text();
+
+      // The legacy calendar still signs users in with @mds.local,
+      // but the current Supabase accounts use @mdscal.com.
+      html = html.replace(
+        "email:`${u}@mds.local`",
+        "email:`${u}@mdscal.com`"
+      );
+
       html = html.replace(
         '</head>',
         '<link rel="stylesheet" href="css/styles.css?v=4">' +
