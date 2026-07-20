@@ -3,24 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#07101f">
 <title>Music Delight Staff Calendar</title>
+<link rel="stylesheet" href="css/styles.css?v=1">
 </head>
 <body style="font-family:Arial,sans-serif;padding:24px">Loading calendar…
-<script>
-(async () => {
-  try {
-    const response = await fetch('https://raw.githubusercontent.com/exsnipe1234-cmd/moe-calendar/5c3ca77a79d79454f7c8ab58f5ebcef99cc567a5/index.html', { cache: 'no-store' });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    let html = await response.text();
-    html = html.replaceAll('@mds.local', '@mdscal.com');
-    html = html.replace('</body>', '<script src="duplicate-check.js?v=4"><\/script><script src="ai-smart-update.js?v=1"><\/script></body>');
-    document.open();
-    document.write(html);
-    document.close();
-  } catch (error) {
-    document.body.textContent = 'Unable to load the calendar: ' + error.message;
-  }
-})();
-</script>
+<script src="js/bootstrap.js?v=1"></script>
 </body>
 </html>
