@@ -13,7 +13,7 @@
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     let html = await response.text();
     html = html.replaceAll('@mds.local', '@mdscal.com');
-    html = html.replace('</body>', '<script src="duplicate-check.js?v=3"><\/script></body>');
+    html = html.replace('</body>', '<script src="duplicate-check.js?v=4"><\/script><script src="ai-smart-update.js?v=1"><\/script></body>');
     document.open();
     document.write(html);
     document.close();
