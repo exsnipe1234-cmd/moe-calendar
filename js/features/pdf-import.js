@@ -72,13 +72,14 @@
     await loadLessons();
   };
 
-  // Daily schedule view. This is intentionally attached here so the stable,
-  // self-contained calendar and authentication code do not need to be changed.
+  // Today remains the default view. On phones, the month calendar is also kept
+  // directly below it and internally positioned at today's date.
   let activeCalendarView = 'today';
+  const mobileQuery = window.matchMedia('(max-width: 640px)');
 
   const style = document.createElement('style');
   style.textContent = `
-    .today-schedule{display:grid;gap:12px}
+    .today-schedule{display:grid;gap:12px;margin-bottom:18px}
     .today-heading{padding:18px;border-radius:15px}
     .today-heading h2{margin:0 0 5px;font-size:24px}
     .today-heading p{margin:0;color:var(--muted)}
@@ -88,7 +89,13 @@
     .today-school{font-size:17px;font-weight:750}
     .today-meta{margin-top:5px;color:var(--muted);font-size:13px}
     .today-teacher{padding:6px 10px;border-radius:999px;background:#233858;font-size:12px;white-space:nowrap}
-    @media(max-width:640px){.today-lesson{grid-template-columns:1fr}.today-teacher{justify-self:start}}
+    .mobile-month-title{display:none;margin:20px 0 10px;font-size:18px}
+    @media(max-width:640px){
+      .today-lesson{grid-template-columns:1fr}
+      .today-teacher{justify-self:start}
+      .mobile-month-title{display:block}
+      #monthWrap.mobile-current-month{max-height:68vh;overflow-y:auto;overscroll-behavior:contain;padding-right:3px;scroll-behavior:smooth}
+    }
   `;
   document.head.appendChild(style);
 
@@ -98,6 +105,11 @@
   todayWrap.id = 'todayWrap';
   todayWrap.className = 'today-schedule';
   monthWrap.parentNode.insertBefore(todayWrap, monthWrap);
+
+  const mobileMonthTitle = document.createElement('h2');
+  mobileMonthTitle.className = 'mobile-month-title';
+  mobileMonthTitle.textContent = 'Month calendar';
+  monthWrap.parentNode.insertBefore(mobileMonthTitle, monthWrap);
 
   const monthButton = $('monthViewBtn');
   const listButton = $('listViewBtn');
@@ -117,8 +129,16 @@
     button.classList.add('primary');
   }
 
+  function positionMonthAtToday() {
+    if (!mobileQuery.matches) return;
+    monthWrap.classList.add('mobile-current-month');
+    requestAnimationFrame(() => {
+      const todayCell = monthWrap.querySelector('.day.today');
+      if (todayCell) monthWrap.scrollTop = Math.max(0, todayCell.offsetTop - 14);
+    });
+  }
+
   function renderTodayView() {
-    if (activeCalendarView !== 'today') return;
     const date = localTodayIso();
     const dayLabel = new Date(date + 'T00:00:00').toLocaleDateString('en-SG', {
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
@@ -143,34 +163,47 @@
 
   function showToday() {
     activeCalendarView = 'today';
+    renderTodayView();
     todayWrap.classList.remove('hidden');
-    monthWrap.classList.add('hidden');
     listWrap.classList.add('hidden');
     setActiveButton(todayButton);
-    renderTodayView();
+
+    if (mobileQuery.matches) {
+      mobileMonthTitle.classList.remove('hidden');
+      monthWrap.classList.remove('hidden');
+      positionMonthAtToday();
+    } else {
+      mobileMonthTitle.classList.add('hidden');
+      monthWrap.classList.add('hidden');
+    }
   }
 
   const originalRender = render;
   render = function () {
     originalRender();
     renderTodayView();
+    if (activeCalendarView === 'today' && mobileQuery.matches) positionMonthAtToday();
   };
 
   todayButton.onclick = showToday;
   monthButton.onclick = () => {
     activeCalendarView = 'month';
     todayWrap.classList.add('hidden');
+    mobileMonthTitle.classList.add('hidden');
     monthWrap.classList.remove('hidden');
     listWrap.classList.add('hidden');
     setActiveButton(monthButton);
+    positionMonthAtToday();
   };
   listButton.onclick = () => {
     activeCalendarView = 'list';
     todayWrap.classList.add('hidden');
+    mobileMonthTitle.classList.add('hidden');
     monthWrap.classList.add('hidden');
     listWrap.classList.remove('hidden');
     setActiveButton(listButton);
   };
 
+  if (mobileQuery.addEventListener) mobileQuery.addEventListener('change', showToday);
   showToday();
 })();
